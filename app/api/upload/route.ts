@@ -1,21 +1,24 @@
 import { TurboFactory } from "@ardrive/turbo-sdk";
 import { NextResponse } from "next/server";
 import { Readable } from "node:stream";
-import fs from "fs";
-import path from "path";
 
-// Read the Arweave keyfile
-const keyfilePath = path.join(
-  process.cwd(),
-  "arweave-keyfile-Safs38bZgIVFBIIqyP2uwKFBZ-C6bOrm9APgm-Sv7rU.json"
+if (!process.env.ARWEAVE_KEY) {
+  throw new Error("ARWEAVE_KEY environment variable is not set");
+}
+
+// Parse the base64 encoded key
+const ARWEAVE_KEY = JSON.parse(
+  Buffer.from(
+    process.env.ARWEAVE_KEY.replace("ARWEAVE_KEY=", ""),
+    "base64"
+  ).toString()
 );
-const ARWEAVE_KEY = JSON.parse(fs.readFileSync(keyfilePath, "utf-8"));
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    // Initialize authenticated Turbo client with the actual keyfile
+    // Initialize authenticated Turbo client with the key from env
     const turbo = TurboFactory.authenticated({
       privateKey: ARWEAVE_KEY,
     });
