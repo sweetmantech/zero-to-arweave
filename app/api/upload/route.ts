@@ -16,16 +16,21 @@ const ARWEAVE_KEY = JSON.parse(
 
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
+    const formData = await request.formData();
+    const file = formData.get("file") as File;
+
+    if (!file) {
+      throw new Error("No file provided");
+    }
 
     // Initialize authenticated Turbo client with the key from env
     const turbo = TurboFactory.authenticated({
       privateKey: ARWEAVE_KEY,
     });
 
-    // Convert the JSON data to a Buffer
-    const jsonBuffer = Buffer.from(JSON.stringify(data));
-    const fileSize = jsonBuffer.length;
+    // Get the file buffer
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const fileSize = fileBuffer.length;
 
     // Get upload costs
     const [{ winc: fileSizeCost }] = await turbo.getUploadCosts({
@@ -33,12 +38,24 @@ export async function POST(request: Request) {
     });
 
     // Create a file stream from the Buffer
-    const fileStreamFactory = () => Readable.from(jsonBuffer);
+    const fileStreamFactory = () => Readable.from(fileBuffer);
 
-    // Upload the file
+    // Upload the file with content type metadata
     const { id, dataCaches, fastFinalityIndexes } = await turbo.uploadFile({
       fileStreamFactory,
       fileSizeFactory: () => fileSize,
+      dataItemOpts: {
+        tags: [
+          {
+            name: "Content-Type",
+            value: file.type || "application/octet-stream",
+          },
+          {
+            name: "File-Name",
+            value: file.name,
+          },
+        ],
+      },
     });
 
     return NextResponse.json({
@@ -47,6 +64,9 @@ export async function POST(request: Request) {
       dataCaches,
       fastFinalityIndexes,
       cost: fileSizeCost,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize,
     });
   } catch (error) {
     console.error("Upload failed:", error);
